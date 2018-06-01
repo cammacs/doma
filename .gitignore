@@ -6,3 +6,7 @@
 /build/
 /target/
 /.metadata
+
+# intellij fils
+/.idea
+/doma.iml
