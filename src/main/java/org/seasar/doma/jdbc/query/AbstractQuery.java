@@ -15,19 +15,22 @@
  */
 package org.seasar.doma.jdbc.query;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
+import jp.co.camnet.macs.cattleya.framework.spec.util.DomaSqlParamterSetter;
+import org.seasar.doma.jdbc.CommentContext;
+import org.seasar.doma.jdbc.Config;
+import org.seasar.doma.jdbc.command.cam.AddParameterImplements;
 
 import java.lang.reflect.Method;
 
-import org.seasar.doma.jdbc.CommentContext;
-import org.seasar.doma.jdbc.Config;
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
 
 /**
- * 
+ *
  * @author nakamura-to
  * @since 2.1.0
  */
-public abstract class AbstractQuery implements Query {
+
+public abstract class AbstractQuery implements Query, AddParameterImplements {
 
     protected String callerClassName;
 
@@ -94,6 +97,10 @@ public abstract class AbstractQuery implements Query {
         assertNotNull(callerClassName, callerMethodName, config);
         commentContext = new CommentContext(callerClassName, callerMethodName,
                 config, method);
+        if (config.getDataSource() instanceof DomaSqlParamterSetter) {
+            DomaSqlParamterSetter setter = ((DomaSqlParamterSetter) config.getDataSource());
+            setter.acceptQuery(this);
+        }
     }
 
     @Override
