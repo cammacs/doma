@@ -15,7 +15,14 @@
  */
 package org.seasar.doma.jdbc.command;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
+
+import org.seasar.doma.FetchType;
+import org.seasar.doma.internal.jdbc.command.PreparedSqlParameterBinder;
+import org.seasar.doma.internal.jdbc.util.JdbcUtil;
+import org.seasar.doma.jdbc.*;
+import org.seasar.doma.jdbc.command.cam.SqlMonitor;
+import org.seasar.doma.jdbc.dialect.Dialect;
+import org.seasar.doma.jdbc.query.SelectQuery;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -24,21 +31,11 @@ import java.sql.SQLException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import org.seasar.doma.FetchType;
-import org.seasar.doma.internal.jdbc.command.PreparedSqlParameterBinder;
-import org.seasar.doma.internal.jdbc.util.JdbcUtil;
-import org.seasar.doma.jdbc.JdbcLogger;
-import org.seasar.doma.jdbc.NoResultException;
-import org.seasar.doma.jdbc.PreparedSql;
-import org.seasar.doma.jdbc.Sql;
-import org.seasar.doma.jdbc.SqlExecutionException;
-import org.seasar.doma.jdbc.dialect.Dialect;
-import org.seasar.doma.jdbc.query.SelectQuery;
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
 
 /**
+ * @param <RESULT> 結果
  * @author taedium
- * @param <RESULT>
- *            結果
  */
 public class SelectCommand<RESULT> implements Command<RESULT> {
 
@@ -49,7 +46,7 @@ public class SelectCommand<RESULT> implements Command<RESULT> {
     protected final ResultSetHandler<RESULT> resultSetHandler;
 
     public SelectCommand(SelectQuery query,
-            ResultSetHandler<RESULT> resultSetHandler) {
+                         ResultSetHandler<RESULT> resultSetHandler) {
         assertNotNull(query, resultSetHandler);
         this.query = query;
         this.sql = query.getSql();
@@ -64,17 +61,22 @@ public class SelectCommand<RESULT> implements Command<RESULT> {
         try {
             PreparedStatement preparedStatement = JdbcUtil.prepareStatement(
                     connection, sql);
+            SqlMonitor sqlMonitor = new SqlMonitor(preparedStatement, query);
             try {
                 log();
                 setupOptions(preparedStatement);
                 bindParameters(preparedStatement);
+                sqlMonitor.begin(true);
                 supplier = executeQuery(preparedStatement);
+                sqlMonitor.success();
             } catch (SQLException e) {
+                sqlMonitor.error();
                 Dialect dialect = query.getConfig().getDialect();
                 throw new SqlExecutionException(query.getConfig()
                         .getExceptionSqlLogType(), sql, e,
                         dialect.getRootCause(e));
             } finally {
+                sqlMonitor.finish();
                 close(supplier, () -> JdbcUtil.close(preparedStatement, query
                         .getConfig().getJdbcLogger()));
             }

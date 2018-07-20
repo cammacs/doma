@@ -15,20 +15,21 @@
  */
 package org.seasar.doma.jdbc.command;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
-
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.SQLException;
-
 import org.seasar.doma.internal.jdbc.command.CallableSqlParameterBinder;
 import org.seasar.doma.internal.jdbc.command.CallableSqlParameterFetcher;
 import org.seasar.doma.internal.jdbc.util.JdbcUtil;
 import org.seasar.doma.jdbc.CallableSql;
 import org.seasar.doma.jdbc.JdbcLogger;
 import org.seasar.doma.jdbc.SqlExecutionException;
+import org.seasar.doma.jdbc.command.cam.SqlMonitor;
 import org.seasar.doma.jdbc.dialect.Dialect;
 import org.seasar.doma.jdbc.query.ModuleQuery;
+
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
 
 /**
  * @author taedium
@@ -57,17 +58,23 @@ public abstract class ModuleCommand<QUERY extends ModuleQuery, RESULT>
         try {
             CallableStatement callableStatement = JdbcUtil.prepareCall(
                     connection, sql);
+            SqlMonitor sqlMonitor = new SqlMonitor(callableStatement, query);
             try {
                 log();
                 setupOptions(callableStatement);
                 bindParameters(callableStatement);
-                return executeInternal(callableStatement);
+                sqlMonitor.begin(true);
+                RESULT result = executeInternal(callableStatement);
+                sqlMonitor.success();
+                return result;
             } catch (SQLException e) {
+                sqlMonitor.error();
                 Dialect dialect = query.getConfig().getDialect();
                 throw new SqlExecutionException(query.getConfig()
                         .getExceptionSqlLogType(), sql, e,
                         dialect.getRootCause(e));
             } finally {
+                sqlMonitor.finish();
                 JdbcUtil.close(callableStatement, query.getConfig()
                         .getJdbcLogger());
             }
@@ -104,5 +111,4 @@ public abstract class ModuleCommand<QUERY extends ModuleQuery, RESULT>
         JdbcLogger logger = query.getConfig().getJdbcLogger();
         logger.logSql(query.getClassName(), query.getMethodName(), sql);
     }
-
 }

@@ -15,12 +15,6 @@
  */
 package org.seasar.doma.jdbc.command;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-
 import org.seasar.doma.internal.jdbc.command.PreparedSqlParameterBinder;
 import org.seasar.doma.internal.jdbc.util.JdbcUtil;
 import org.seasar.doma.jdbc.Config;
@@ -29,8 +23,15 @@ import org.seasar.doma.jdbc.OptimisticLockException;
 import org.seasar.doma.jdbc.PreparedSql;
 import org.seasar.doma.jdbc.SqlExecutionException;
 import org.seasar.doma.jdbc.UniqueConstraintException;
+import org.seasar.doma.jdbc.command.cam.SqlMonitor;
 import org.seasar.doma.jdbc.dialect.Dialect;
 import org.seasar.doma.jdbc.query.ModifyQuery;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
 
 /**
  * @author taedium
@@ -62,17 +63,23 @@ public abstract class ModifyCommand<QUERY extends ModifyQuery> implements
                 .getDataSource());
         try {
             PreparedStatement preparedStatement = prepareStatement(connection);
+            SqlMonitor sqlMonitor = new SqlMonitor(preparedStatement, query);
             try {
                 log();
                 setupOptions(preparedStatement);
                 bindParameters(preparedStatement);
-                return executeInternal(preparedStatement);
+                sqlMonitor.begin(true);
+                int result = executeInternal(preparedStatement);
+                sqlMonitor.success();
+                return result;
             } catch (SQLException e) {
+                sqlMonitor.error();
                 Dialect dialect = query.getConfig().getDialect();
                 throw new SqlExecutionException(query.getConfig()
                         .getExceptionSqlLogType(), sql, e,
                         dialect.getRootCause(e));
             } finally {
+                sqlMonitor.finish();
                 JdbcUtil.close(preparedStatement, query.getConfig()
                         .getJdbcLogger());
             }

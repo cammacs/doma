@@ -15,14 +15,6 @@
  */
 package org.seasar.doma.jdbc.command;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Collections;
-import java.util.function.Function;
-
 import org.seasar.doma.internal.jdbc.command.ScriptReader;
 import org.seasar.doma.internal.jdbc.util.JdbcUtil;
 import org.seasar.doma.jdbc.AbstractSql;
@@ -32,11 +24,20 @@ import org.seasar.doma.jdbc.ScriptException;
 import org.seasar.doma.jdbc.SqlKind;
 import org.seasar.doma.jdbc.SqlLogType;
 import org.seasar.doma.jdbc.SqlParameter;
+import org.seasar.doma.jdbc.command.cam.SqlMonitor;
 import org.seasar.doma.jdbc.query.ScriptQuery;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Collections;
+import java.util.function.Function;
+
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
 
 /**
  * @author taedium
- * 
+ *
  */
 public class ScriptCommand implements Command<Void> {
 
@@ -62,11 +63,15 @@ public class ScriptCommand implements Command<Void> {
                             query.getScriptFilePath(), query.getSqlLogType(),
                             query::comment);
                     Statement statement = JdbcUtil.createStatement(connection);
+                    SqlMonitor sqlMonitor = new SqlMonitor(statement, query);
                     try {
                         log(sql);
                         setupOptions(statement);
+                        sqlMonitor.begin(true);
                         statement.execute(script);
+                        sqlMonitor.success();
                     } catch (Exception e) {
+                        sqlMonitor.error();
                         if (query.getHaltOnError()) {
                             throw new ScriptException(e, sql,
                                     reader.getLineNumber());
@@ -76,6 +81,7 @@ public class ScriptCommand implements Command<Void> {
                                     reader.getLineNumber());
                         }
                     } finally {
+                        sqlMonitor.finish();
                         JdbcUtil.close(statement, config.getJdbcLogger());
                     }
                 }
@@ -109,11 +115,9 @@ public class ScriptCommand implements Command<Void> {
     protected static class ScriptSql extends AbstractSql<SqlParameter> {
 
         public ScriptSql(String rawSql, String sqlFilePath,
-                SqlLogType sqlLogType, Function<String, String> converter) {
+                         SqlLogType sqlLogType, Function<String, String> converter) {
             super(SqlKind.SCRIPT, rawSql, rawSql, sqlFilePath, Collections
                     .emptyList(), sqlLogType, converter);
         }
-
     }
-
 }

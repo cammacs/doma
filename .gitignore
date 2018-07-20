@@ -8,3 +8,5 @@
 /.metadata
 .idea
 out
+##
+/doma.iml
