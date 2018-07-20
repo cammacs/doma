@@ -15,6 +15,19 @@
  */
 package org.seasar.doma.jdbc.builder;
 
+import org.seasar.doma.*;
+import org.seasar.doma.internal.jdbc.command.*;
+import org.seasar.doma.internal.jdbc.scalar.Scalar;
+import org.seasar.doma.internal.jdbc.scalar.ScalarException;
+import org.seasar.doma.internal.jdbc.scalar.Scalars;
+import org.seasar.doma.jdbc.*;
+import org.seasar.doma.jdbc.command.ResultSetHandler;
+import org.seasar.doma.jdbc.command.SelectCommand;
+import org.seasar.doma.jdbc.entity.EntityType;
+import org.seasar.doma.jdbc.entity.EntityTypeFactory;
+import org.seasar.doma.jdbc.query.SqlSelectQuery;
+import org.seasar.doma.message.Message;
+
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
@@ -23,50 +36,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import org.seasar.doma.DomaIllegalArgumentException;
-import org.seasar.doma.DomaNullPointerException;
-import org.seasar.doma.Entity;
-import org.seasar.doma.FetchType;
-import org.seasar.doma.MapKeyNamingType;
-import org.seasar.doma.internal.jdbc.command.EntityResultListHandler;
-import org.seasar.doma.internal.jdbc.command.EntitySingleResultHandler;
-import org.seasar.doma.internal.jdbc.command.EntityStreamHandler;
-import org.seasar.doma.internal.jdbc.command.MapResultListHandler;
-import org.seasar.doma.internal.jdbc.command.MapSingleResultHandler;
-import org.seasar.doma.internal.jdbc.command.MapStreamHandler;
-import org.seasar.doma.internal.jdbc.command.OptionalEntitySingleResultHandler;
-import org.seasar.doma.internal.jdbc.command.OptionalMapSingleResultHandler;
-import org.seasar.doma.internal.jdbc.command.ScalarResultListHandler;
-import org.seasar.doma.internal.jdbc.command.ScalarSingleResultHandler;
-import org.seasar.doma.internal.jdbc.command.ScalarStreamHandler;
-import org.seasar.doma.internal.jdbc.scalar.Scalar;
-import org.seasar.doma.internal.jdbc.scalar.ScalarException;
-import org.seasar.doma.internal.jdbc.scalar.Scalars;
-import org.seasar.doma.jdbc.Config;
-import org.seasar.doma.jdbc.JdbcException;
-import org.seasar.doma.jdbc.NoResultException;
-import org.seasar.doma.jdbc.NonSingleColumnException;
-import org.seasar.doma.jdbc.NonUniqueResultException;
-import org.seasar.doma.jdbc.ResultMappingException;
-import org.seasar.doma.jdbc.SelectOptions;
-import org.seasar.doma.jdbc.Sql;
-import org.seasar.doma.jdbc.SqlLogType;
-import org.seasar.doma.jdbc.UnknownColumnException;
-import org.seasar.doma.jdbc.command.ResultSetHandler;
-import org.seasar.doma.jdbc.command.SelectCommand;
-import org.seasar.doma.jdbc.entity.EntityType;
-import org.seasar.doma.jdbc.entity.EntityTypeFactory;
-import org.seasar.doma.jdbc.query.SqlSelectQuery;
-import org.seasar.doma.message.Message;
-
 /**
  * SELECT文を組み立て実行するクラスです。
  * <p>
  * このクラスはスレッドセーフではありません。
- * 
+ * <p>
  * <h3>例</h3>
  * <h4>Java</h4>
- * 
+ * <p>
  * <pre>
  * SelectBuilder builder = SelectBuilder.newInstance(config);
  * builder.sql(&quot;select&quot;);
@@ -80,9 +57,9 @@ import org.seasar.doma.message.Message;
  * builder.sql(&quot;age &gt; &quot;).param(int.class, 20);
  * Emp emp = builder.getEntitySingleResult(Emp.class);
  * </pre>
- * 
+ * <p>
  * <h4>実行されるSQL</h4>
- * 
+ * <p>
  * <pre>
  * select
  * id,
@@ -94,7 +71,7 @@ import org.seasar.doma.message.Message;
  * and
  * age &gt; 20
  * </pre>
- * 
+ *
  * @author taedium
  * @since 1.8.0
  */
@@ -111,7 +88,7 @@ public class SelectBuilder {
     private SelectBuilder(Config config) {
         this.config = config;
         this.helper = new BuildingHelper();
-        this.query = new SqlSelectQuery();
+        this.query = config.getQueryImplementors().createSqlSelectQuery(null);
         this.query.setConfig(config);
         this.query.setCallerClassName(getClass().getName());
         this.query.setFetchType(FetchType.LAZY);
@@ -120,7 +97,7 @@ public class SelectBuilder {
     }
 
     private SelectBuilder(Config config, BuildingHelper builder,
-            SqlSelectQuery query, ParamIndex parameterIndex) {
+                          SqlSelectQuery query, ParamIndex parameterIndex) {
         this.config = config;
         this.helper = builder;
         this.query = query;
@@ -129,12 +106,10 @@ public class SelectBuilder {
 
     /**
      * ファクトリメソッドです。
-     * 
-     * @param config
-     *            設定
+     *
+     * @param config 設定
      * @return SELECT文を組み立てるビルダー
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
+     * @throws DomaNullPointerException 引数が{@code null} の場合
      */
     public static SelectBuilder newInstance(Config config) {
         if (config == null) {
@@ -145,12 +120,10 @@ public class SelectBuilder {
 
     /**
      * SQLの断片を追加します。
-     * 
-     * @param sql
-     *            SQLの断片
+     *
+     * @param sql SQLの断片
      * @return このインスタンス
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
+     * @throws DomaNullPointerException 引数が {@code null} の場合
      */
     public SelectBuilder sql(String sql) {
         if (sql == null) {
@@ -162,7 +135,7 @@ public class SelectBuilder {
 
     /**
      * 最後に追加したSQLもしくはパラメータを削除します。
-     * 
+     *
      * @return このインスタンス
      */
     public SelectBuilder removeLast() {
@@ -174,16 +147,12 @@ public class SelectBuilder {
      * パラメータを追加します。
      * <p>
      * パラメータの型には、基本型とドメインクラスを指定できます。
-     * 
-     * @param <P>
-     *            パラメータの型
-     * @param paramClass
-     *            パラメータのクラス
-     * @param param
-     *            パラメータ
+     *
+     * @param <P>        パラメータの型
+     * @param paramClass パラメータのクラス
+     * @param param      パラメータ
      * @return このインスタンス
-     * @throws DomaNullPointerException
-     *             {@code paramClass} が {@code null} の場合
+     * @throws DomaNullPointerException {@code paramClass} が {@code null} の場合
      */
     public <P> SelectBuilder param(Class<P> paramClass, P param) {
         if (paramClass == null) {
@@ -196,17 +165,12 @@ public class SelectBuilder {
      * パラメータのリストを追加します。
      * <p>
      * パラメータのリストの要素の型には、基本型とドメインクラスを指定できます。
-     * 
-     * @param <E>
-     *            リストの要素の型
-     * @param elementClass
-     *            リストの要素のクラス
-     * @param params
-     *            パラメータのリスト
-     * 
+     *
+     * @param <E>          リストの要素の型
+     * @param elementClass リストの要素のクラス
+     * @param params       パラメータのリスト
      * @return クエリビルダ
-     * @throws DomaNullPointerException
-     *             {@code elementClass} もしくは {@code params} が {@code null} の場合
+     * @throws DomaNullPointerException {@code elementClass} もしくは {@code params} が {@code null} の場合
      */
     public <E> SelectBuilder params(Class<E> elementClass, List<E> params) {
         if (elementClass == null) {
@@ -222,16 +186,12 @@ public class SelectBuilder {
      * リテラルとしてパラメータを追加します。
      * <p>
      * パラメータの型には、基本型とドメインクラスを指定できます。
-     * 
-     * @param <P>
-     *            パラメータの型
-     * @param paramClass
-     *            パラメータのクラス
-     * @param param
-     *            パラメータ
+     *
+     * @param <P>        パラメータの型
+     * @param paramClass パラメータのクラス
+     * @param param      パラメータ
      * @return このインスタンス
-     * @throws DomaNullPointerException
-     *             {@code paramClass} が {@code null} の場合
+     * @throws DomaNullPointerException {@code paramClass} が {@code null} の場合
      */
     public <P> SelectBuilder literal(Class<P> paramClass, P param) {
         if (paramClass == null) {
@@ -244,16 +204,12 @@ public class SelectBuilder {
      * リテラルとしてパラメータのリストを追加します。
      * <p>
      * パラメータのリストの要素の型には、基本型とドメインクラスを指定できます。
-     * 
-     * @param <E>
-     *            リストの要素の型
-     * @param elementClass
-     *            リストの要素のクラス
-     * @param params
-     *            パラメータのリスト
+     *
+     * @param <E>          リストの要素の型
+     * @param elementClass リストの要素のクラス
+     * @param params       パラメータのリスト
      * @return クエリビルダ
-     * @throws DomaNullPointerException
-     *             {@code elementClass} もしくは {@code params} が {@code null} の場合
+     * @throws DomaNullPointerException {@code elementClass} もしくは {@code params} が {@code null} の場合
      */
     public <E> SelectBuilder literals(Class<E> elementClass, List<E> params) {
         if (elementClass == null) {
@@ -266,14 +222,14 @@ public class SelectBuilder {
     }
 
     private <P> SelectBuilder appendParam(Class<P> paramClass, P param,
-            boolean literal) {
+                                          boolean literal) {
         helper.appendParam(new Param(paramClass, param, paramIndex, literal));
         paramIndex.increment();
         return new SubsequentSelectBuilder(config, helper, query, paramIndex);
     }
 
     private <E> SelectBuilder appendParams(Class<E> elementClass,
-            List<E> params, boolean literal) {
+                                           List<E> params, boolean literal) {
         SelectBuilder builder = this;
         int index = 0;
         for (E param : params) {
@@ -295,29 +251,19 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code null}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに{@link NoResultException} をスローできます。
-     * 
-     * @param <RESULT>
-     *            エンティティの型
-     * @param resultClass
-     *            エンティティクラス
+     *
+     * @param <RESULT>    エンティティの型
+     * @param resultClass エンティティクラス
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} がエンティティクラスでない場合
-     * @throws UnknownColumnException
-     *             結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws ResultMappingException
-     *             {@link SelectBuilder#ensureResultMapping(boolean)} に
-     *             {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} がエンティティクラスでない場合
+     * @throws UnknownColumnException       結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws ResultMappingException       {@link SelectBuilder#ensureResultMapping(boolean)} に
+     *                                      {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <RESULT> RESULT getEntitySingleResult(Class<RESULT> resultClass) {
@@ -345,28 +291,19 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code Optional}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに{@link NoResultException} をスローできます。
-     * 
-     * @param <RESULT>
-     *            エンティティの型
-     * @param resultClass
-     *            エンティティクラス
+     *
+     * @param <RESULT>    エンティティの型
+     * @param resultClass エンティティクラス
      * @return 検索結果
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} がエンティティクラスでない場合
-     * @throws UnknownColumnException
-     *             結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws ResultMappingException
-     *             {@link SelectBuilder#ensureResultMapping(boolean)} に
-     *             {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} がエンティティクラスでない場合
+     * @throws UnknownColumnException       結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws ResultMappingException       {@link SelectBuilder#ensureResultMapping(boolean)} に
+     *                                      {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <RESULT> Optional<RESULT> getOptionalEntitySingleResult(
@@ -395,28 +332,20 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code null}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに{@link NoResultException} をスローできます。
-     * 
-     * @param <RESULT>
-     *            基本型もしくはドメイン型
-     * @param resultClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <RESULT>    基本型もしくはドメイン型
+     * @param resultClass 基本型もしくはドメイン型のクラス
      * @return 検索結果
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <RESULT> RESULT getScalarSingleResult(Class<RESULT> resultClass) {
         if (resultClass == null) {
             throw new DomaNullPointerException("resultClass");
@@ -437,28 +366,20 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code Optional}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに{@link NoResultException} をスローできます。
-     * 
-     * @param <RESULT>
-     *            基本型もしくはドメイン型
-     * @param resultClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <RESULT>    基本型もしくはドメイン型
+     * @param resultClass 基本型もしくはドメイン型のクラス
      * @return 検索結果
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <RESULT> Optional<RESULT> getOptionalScalarSingleResult(
             Class<RESULT> resultClass) {
         if (resultClass == null) {
@@ -480,20 +401,14 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code null}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに {@link NoResultException} をスローできます。
-     * 
-     * @param mapKeyNamingType
-     *            マップのキーのネーミング規約
+     *
+     * @param mapKeyNamingType マップのキーのネーミング規約
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException 引数が{@code null} の場合
+     * @throws NoResultException        {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                  を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException 結果が2件以上返された場合
+     * @throws JdbcException            上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public Map<String, Object> getMapSingleResult(
@@ -515,20 +430,14 @@ public class SelectBuilder {
      * 検索結果が存在しない場合は {@code Optional}を返しますが、
      * {@link SelectBuilder#ensureResult(boolean)} に {@code true} を設定することで、
      * {@code null}を返す代わりに {@link NoResultException} をスローできます。
-     * 
-     * @param mapKeyNamingType
-     *            マップのキーのネーミング規約
+     *
+     * @param mapKeyNamingType マップのキーのネーミング規約
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException 引数が{@code null} の場合
+     * @throws NoResultException        {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                  を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException 結果が2件以上返された場合
+     * @throws JdbcException            上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public Optional<Map<String, Object>> getOptionalMapSingleResult(
@@ -548,27 +457,18 @@ public class SelectBuilder {
      * エンティティの複数件を返します。
      * <p>
      * 検索結果が存在しない場合は空のリストを返します。
-     * 
-     * @param <ELEMENT>
-     *            エンティティ型
-     * @param elementClass
-     *            エンティティ型のクラス
+     *
+     * @param <ELEMENT>    エンティティ型
+     * @param elementClass エンティティ型のクラス
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code elementClass} がエンティティクラスでない場合
-     * @throws UnknownColumnException
-     *             結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws ResultMappingException
-     *             {@link SelectBuilder#ensureResultMapping(boolean)} に
-     *             {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が {@code null} の場合
+     * @throws DomaIllegalArgumentException {@code elementClass} がエンティティクラスでない場合
+     * @throws UnknownColumnException       結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws ResultMappingException       {@link SelectBuilder#ensureResultMapping(boolean)} に
+     *                                      {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <ELEMENT> List<ELEMENT> getEntityResultList(
@@ -595,29 +495,20 @@ public class SelectBuilder {
      * 基本型もしくはドメイン型のインスタンスを複数件返します。
      * <p>
      * 検索結果が存在しない場合は空のリストを返します。
-     * 
-     * @param <ELEMENT>
-     *            基本型もしくはドメイン型
-     * @param elementClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <ELEMENT>    基本型もしくはドメイン型
+     * @param elementClass 基本型もしくはドメイン型のクラス
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <ELEMENT> List<ELEMENT> getScalarResultList(
             Class<ELEMENT> elementClass) {
         if (elementClass == null) {
@@ -637,29 +528,20 @@ public class SelectBuilder {
      * 基本型もしくはドメイン型のインスタンスを {@link Optional} でラップして複数件返します。
      * <p>
      * 検索結果が存在しない場合は空のリストを返します。
-     * 
-     * @param <ELEMENT>
-     *            基本型もしくはドメイン型
-     * @param elementClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <ELEMENT>    基本型もしくはドメイン型
+     * @param elementClass 基本型もしくはドメイン型のクラス
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws NonUniqueResultException
-     *             結果が2件以上返された場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code resultClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws NonUniqueResultException     結果が2件以上返された場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <ELEMENT> List<Optional<ELEMENT>> getOptionalScalarResultList(
             Class<ELEMENT> elementClass) {
         if (elementClass == null) {
@@ -679,15 +561,11 @@ public class SelectBuilder {
      * {@code List<Map<String, Object>>} のインスタンスを複数件返します。
      * <p>
      * 検索結果が存在しない場合は空のリストを返します。
-     * 
-     * @param mapKeyNamingType
-     *            マップのキーのネーミング規約
+     *
+     * @param mapKeyNamingType マップのキーのネーミング規約
      * @return 検索結果
-     * 
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException 引数が {@code null} の場合
+     * @throws JdbcException            上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public List<Map<String, Object>> getMapResultList(
@@ -707,18 +585,13 @@ public class SelectBuilder {
      * エンティティのストリームを返します。
      * <p>
      * ストリームはアプリケーションでクローズしなければいけません。
-     * 
-     * @param <TARGET>
-     *            エンティティ型
-     * @param targetClass
-     *            エンティティ型のクラス
+     *
+     * @param <TARGET>    エンティティ型
+     * @param targetClass エンティティ型のクラス
      * @return エンティティのストリーム
-     * @throws DomaNullPointerException
-     *             引数が{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             処理対象のクラスがエンティティ型でない場合
-     * @throws JdbcException
-     *             JDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数が{@code null} の場合
+     * @throws DomaIllegalArgumentException 処理対象のクラスがエンティティ型でない場合
+     * @throws JdbcException                JDBCに関する例外が発生した場合
      * @since 2.7.0
      */
     public <TARGET> Stream<TARGET> streamEntity(Class<TARGET> targetClass) {
@@ -735,34 +608,24 @@ public class SelectBuilder {
 
     /**
      * エンティティのインスタンスをストリームで処理します。
-     * 
-     * @param <RESULT>
-     *            戻り値の型
-     * @param <TARGET>
-     *            エンティティ型
-     * @param targetClass
-     *            エンティティ型のクラス
-     * @param mapper
-     *            マッパー
+     *
+     * @param <RESULT>    戻り値の型
+     * @param <TARGET>    エンティティ型
+     * @param targetClass エンティティ型のクラス
+     * @param mapper      マッパー
      * @return 任意の実行結果
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             処理対象のクラスがエンティティ型でない場合
-     * @throws UnknownColumnException
-     *             結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws ResultMappingException
-     *             {@link SelectBuilder#ensureResultMapping(boolean)} に
-     *             {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数のいずれかが{@code null} の場合
+     * @throws DomaIllegalArgumentException 処理対象のクラスがエンティティ型でない場合
+     * @throws UnknownColumnException       結果セットに含まれるカラムにマッピングされたプロパティが見つからなかった場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws ResultMappingException       {@link SelectBuilder#ensureResultMapping(boolean)} に
+     *                                      {@code true} を設定しており、マッピングされないエンティティプロパティが存在する場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <TARGET, RESULT> RESULT streamEntity(Class<TARGET> targetClass,
-            Function<Stream<TARGET>, RESULT> mapper) {
+                                                Function<Stream<TARGET>, RESULT> mapper) {
         if (targetClass == null) {
             throw new DomaNullPointerException("targetClass");
         }
@@ -793,18 +656,13 @@ public class SelectBuilder {
      * 基本型もしくはドメイン型のストリームを返します。
      * <p>
      * ストリームはアプリケーションでクローズしなければいけません。
-     * 
-     * @param <TARGET>
-     *            基本型もしくはドメイン型
-     * @param targetClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <TARGET>    基本型もしくはドメイン型
+     * @param targetClass 基本型もしくはドメイン型のクラス
      * @return 基本型もしくはドメイン型のストリーム
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws JdbcException
-     *             JDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数のいずれかが{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws JdbcException                JDBCに関する例外が発生した場合
      * @since 2.7.0
      */
     public <TARGET> Stream<TARGET> streamScalar(Class<TARGET> targetClass) {
@@ -817,31 +675,22 @@ public class SelectBuilder {
 
     /**
      * 結果セットを基本型もしくはドメイン型のインスタンスをストリームで処理します。
-     * 
-     * @param <RESULT>
-     *            戻り値の型
-     * @param <TARGET>
-     *            基本型もしくはドメイン型
-     * @param targetClass
-     *            基本型もしくはドメイン型のクラス
-     * @param mapper
-     *            マッパー
+     *
+     * @param <RESULT>    戻り値の型
+     * @param <TARGET>    基本型もしくはドメイン型
+     * @param targetClass 基本型もしくはドメイン型のクラス
+     * @param mapper      マッパー
      * @return 任意の実行結果
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数のいずれかが{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <RESULT, TARGET> RESULT streamScalar(Class<TARGET> targetClass,
-            Function<Stream<TARGET>, RESULT> mapper) {
+                                                Function<Stream<TARGET>, RESULT> mapper) {
         if (targetClass == null) {
             throw new DomaNullPointerException("targetClass");
         }
@@ -851,7 +700,7 @@ public class SelectBuilder {
         return streamScalarInternal(targetClass, mapper);
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     protected <RESULT, TARGET> RESULT streamScalarInternal(
             Class<TARGET> targetClass, Function<Stream<TARGET>, RESULT> mapper) {
         if (query.getMethodName() == null) {
@@ -868,18 +717,13 @@ public class SelectBuilder {
      * 基本型もしくはドメイン型をラップした {@code Optional} のストリームを返します。
      * <p>
      * ストリームはアプリケーションでクローズしなければいけません。
-     * 
-     * @param <TARGET>
-     *            基本型もしくはドメイン型
-     * @param targetClass
-     *            基本型もしくはドメイン型のクラス
+     *
+     * @param <TARGET>    基本型もしくはドメイン型
+     * @param targetClass 基本型もしくはドメイン型のクラス
      * @return {@code Optional} のストリーム
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws JdbcException
-     *             JDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数のいずれかが{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws JdbcException                JDBCに関する例外が発生した場合
      * @since 2.7.0
      */
     public <TARGET> Stream<Optional<TARGET>> streamOptionalScalar(
@@ -895,27 +739,18 @@ public class SelectBuilder {
      * 結果セットを基本型もしくはドメイン型のインスタンスを {@link Optional} でラップしてストリームで処理します。
      * <p>
      * ストリームはアプリケーションでクローズしなければいけません。
-     * 
-     * @param <RESULT>
-     *            戻り値の型
-     * @param <TARGET>
-     *            基本型もしくはドメイン型
-     * @param targetClass
-     *            基本型もしくはドメイン型のクラス
-     * @param mapper
-     *            マッパー
+     *
+     * @param <RESULT>    戻り値の型
+     * @param <TARGET>    基本型もしくはドメイン型
+     * @param targetClass 基本型もしくはドメイン型のクラス
+     * @param mapper      マッパー
      * @return 任意の実行結果
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws DomaIllegalArgumentException
-     *             {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
-     * @throws NonSingleColumnException
-     *             結果セットに複数のカラムが含まれている場合
-     * @throws NoResultException
-     *             {@link SelectBuilder#ensureResult(boolean)} に {@code true}
-     *             を設定しており結果が存在しない場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException     引数のいずれかが{@code null} の場合
+     * @throws DomaIllegalArgumentException {@code targetClass} が基本型もしくはドメイン型のクラスでない場合
+     * @throws NonSingleColumnException     結果セットに複数のカラムが含まれている場合
+     * @throws NoResultException            {@link SelectBuilder#ensureResult(boolean)} に {@code true}
+     *                                      を設定しており結果が存在しない場合
+     * @throws JdbcException                上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <RESULT, TARGET> RESULT streamOptionalScalar(
@@ -930,7 +765,7 @@ public class SelectBuilder {
         return streamOptionalScalarInternal(targetClass, mapper);
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     protected <RESULT, TARGET> RESULT streamOptionalScalarInternal(
             Class<TARGET> targetClass,
             Function<Stream<Optional<TARGET>>, RESULT> mapper) {
@@ -948,14 +783,11 @@ public class SelectBuilder {
      * {@code Map<String, Object>} のストリームを返します。
      * <p>
      * ストリームはアプリケーションでクローズしなければいけません。
-     * 
-     * @param mapKeyNamingType
-     *            マップのキーのネーミング規約
+     *
+     * @param mapKeyNamingType マップのキーのネーミング規約
      * @return {@code Map<String, Object>} のストリーム
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws JdbcException
-     *             JDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException 引数のいずれかが{@code null} の場合
+     * @throws JdbcException            JDBCに関する例外が発生した場合
      * @since 2.7.0
      */
     public Stream<Map<String, Object>> streamMap(
@@ -969,22 +801,17 @@ public class SelectBuilder {
 
     /**
      * {@code Map<String, Object>} のインスタンスをストリームで処理します。
-     * 
-     * @param <RESULT>
-     *            戻り値の型
-     * @param mapKeyNamingType
-     *            マップのキーのネーミング規約
-     * @param mapper
-     *            マッパー
+     *
+     * @param <RESULT>         戻り値の型
+     * @param mapKeyNamingType マップのキーのネーミング規約
+     * @param mapper           マッパー
      * @return 任意の実行結果
-     * @throws DomaNullPointerException
-     *             引数のいずれかが{@code null} の場合
-     * @throws JdbcException
-     *             上記以外でJDBCに関する例外が発生した場合
+     * @throws DomaNullPointerException 引数のいずれかが{@code null} の場合
+     * @throws JdbcException            上記以外でJDBCに関する例外が発生した場合
      * @since 2.0.0
      */
     public <RESULT> RESULT streamMap(MapKeyNamingType mapKeyNamingType,
-            Function<Stream<Map<String, Object>>, RESULT> mapper) {
+                                     Function<Stream<Map<String, Object>>, RESULT> mapper) {
         if (mapKeyNamingType == null) {
             throw new DomaNullPointerException("mapKeyNamingType");
         }
@@ -1025,9 +852,8 @@ public class SelectBuilder {
 
     /**
      * 結果が少なくとも1件以上存在することを保証します。
-     * 
-     * @param ensureResult
-     *            結果が少なくとも1件以上存在することを保証する場合 {@code true}
+     *
+     * @param ensureResult 結果が少なくとも1件以上存在することを保証する場合 {@code true}
      */
     public void ensureResult(boolean ensureResult) {
         query.setResultEnsured(ensureResult);
@@ -1035,9 +861,8 @@ public class SelectBuilder {
 
     /**
      * 結果のエンティティのすべてのプロパティが結果セットのカラムにマッピングされることを保証します。
-     * 
-     * @param ensureResultMapping
-     *            結果のエンティティのすべてのプロパティが結果セットのカラムにマッピングされることを保証する場合 {@code true}
+     *
+     * @param ensureResultMapping 結果のエンティティのすべてのプロパティが結果セットのカラムにマッピングされることを保証する場合 {@code true}
      * @since 1.34.0
      */
     public void ensureResultMapping(boolean ensureResultMapping) {
@@ -1046,9 +871,8 @@ public class SelectBuilder {
 
     /**
      * フェッチのタイプを設定します。
-     * 
-     * @param fetchType
-     *            フェッチのタイプ
+     *
+     * @param fetchType フェッチのタイプ
      */
     public void fetch(FetchType fetchType) {
         query.setFetchType(fetchType);
@@ -1058,9 +882,8 @@ public class SelectBuilder {
      * フェッチサイズを設定します。
      * <p>
      * 指定しない場合、 {@link Config#getFetchSize()} が使用されます。
-     * 
-     * @param fetchSize
-     *            フェッチサイズ
+     *
+     * @param fetchSize フェッチサイズ
      * @see Statement#setFetchSize(int)
      */
     public void fetchSize(int fetchSize) {
@@ -1071,9 +894,8 @@ public class SelectBuilder {
      * 最大行数の制限値を設定します。
      * <p>
      * 指定しない場合、 {@link Config#getMaxRows()} が使用されます。
-     * 
-     * @param maxRows
-     *            最大行数の制限値
+     *
+     * @param maxRows 最大行数の制限値
      * @see Statement#setMaxRows(int)
      */
     public void maxRows(int maxRows) {
@@ -1084,9 +906,8 @@ public class SelectBuilder {
      * クエリタイムアウト（秒）を設定します。
      * <p>
      * 指定しない場合、 {@link Config#getQueryTimeout()} が使用されます。
-     * 
-     * @param queryTimeout
-     *            クエリタイムアウト（秒）
+     *
+     * @param queryTimeout クエリタイムアウト（秒）
      * @see Statement#setQueryTimeout(int)
      */
     public void queryTimeout(int queryTimeout) {
@@ -1095,9 +916,8 @@ public class SelectBuilder {
 
     /**
      * SQLのログの出力形式を設定します。
-     * 
-     * @param sqlLogType
-     *            SQLのログの出力形式
+     *
+     * @param sqlLogType SQLのログの出力形式
      */
     public void sqlLogType(SqlLogType sqlLogType) {
         if (sqlLogType == null) {
@@ -1110,11 +930,9 @@ public class SelectBuilder {
      * 呼び出し元のクラス名です。
      * <p>
      * 指定しない場合このクラスの名前が使用されます。
-     * 
-     * @param className
-     *            呼び出し元のクラス名
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
+     *
+     * @param className 呼び出し元のクラス名
+     * @throws DomaNullPointerException 引数が {@code null} の場合
      */
     public void callerClassName(String className) {
         if (className == null) {
@@ -1126,11 +944,9 @@ public class SelectBuilder {
     /**
      * 呼び出し元のメソッド名です。
      * <p>
-     * 
-     * @param methodName
-     *            呼び出し元のメソッド名
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
+     *
+     * @param methodName 呼び出し元のメソッド名
+     * @throws DomaNullPointerException 引数が {@code null} の場合
      */
     public void callerMethodName(String methodName) {
         if (methodName == null) {
@@ -1141,11 +957,9 @@ public class SelectBuilder {
 
     /**
      * 検索系SQLを実行する際のオプションを設定します。
-     * 
-     * @param options
-     *            検索系SQLを実行する際のオプション
-     * @throws DomaNullPointerException
-     *             引数が {@code null} の場合
+     *
+     * @param options 検索系SQLを実行する際のオプション
+     * @throws DomaNullPointerException 引数が {@code null} の場合
      */
     public void options(SelectOptions options) {
         if (options == null) {
@@ -1156,7 +970,7 @@ public class SelectBuilder {
 
     /**
      * 組み立てられたSQLを返します。
-     * 
+     *
      * @return 組み立てられたSQL
      */
     public Sql<?> getSql() {
@@ -1168,7 +982,7 @@ public class SelectBuilder {
     }
 
     private Supplier<Scalar<?, ?>> createScalarSupplier(String parameterName,
-            Class<?> clazz, boolean optional) {
+                                                        Class<?> clazz, boolean optional) {
         try {
             return Scalars.wrap(null, clazz, optional, config.getClassHelper());
         } catch (ScalarException e) {
@@ -1180,7 +994,7 @@ public class SelectBuilder {
     private static class SubsequentSelectBuilder extends SelectBuilder {
 
         private SubsequentSelectBuilder(Config config, BuildingHelper builder,
-                SqlSelectQuery query, ParamIndex paramIndex) {
+                                        SqlSelectQuery query, ParamIndex paramIndex) {
             super(config, builder, query, paramIndex);
         }
 
