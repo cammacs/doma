@@ -15,7 +15,7 @@
  */
 package org.seasar.doma.jdbc.query;
 
-import jp.co.camnet.macs.cattleya.framework.spec.util.DomaSqlParamterSetter;
+import jp.co.camnet.doma.DomaSqlParamterSetter;
 import org.seasar.doma.jdbc.CommentContext;
 import org.seasar.doma.jdbc.Config;
 import org.seasar.doma.jdbc.command.cam.AddParameterImplements;

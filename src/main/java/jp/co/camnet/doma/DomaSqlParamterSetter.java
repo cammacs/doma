@@ -2,7 +2,7 @@
  * Copyright 2007-2018 CAM Corporation.
  */
 
-package jp.co.camnet.macs.cattleya.framework.spec.util;
+package jp.co.camnet.doma;
 
 import org.seasar.doma.jdbc.query.Query;
 

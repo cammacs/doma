@@ -19,8 +19,9 @@ import org.seasar.doma.DomaNullPointerException;
 
 /**
  * {@link String} のラッパーです。
- *
+ * 
  * @author taedium
+ * 
  */
 public class ObjectWrapper extends AbstractWrapper<Object> {
 
@@ -33,8 +34,9 @@ public class ObjectWrapper extends AbstractWrapper<Object> {
 
     /**
      * 値を指定してインスタンスを構築します。
-     *
-     * @param value 値
+     * 
+     * @param value
+     *            値
      */
     public ObjectWrapper(Object value) {
         super(Object.class, value);

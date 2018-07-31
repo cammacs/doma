@@ -137,10 +137,4 @@ public interface WrapperVisitor<R, P, Q, TH extends Throwable> {
     default R visitUtilDateWrapper(UtilDateWrapper wrapper, P p, Q q) throws TH {
         return null;
     }
-
-    default R visitSalaClassWrapper(SalaClassWrapper wrapper, P p, Q q) throws TH {
-        return null;
-    }
-
-
 }

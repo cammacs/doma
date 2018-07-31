@@ -91,9 +91,6 @@ public final class Scalars {
             if (result == null) {
                 result = wrapEnumObject(value, boxedClass, optional);
                 if (result == null) {
-
-                    result = wrapUnknownObject()
-
                     throw new ScalarException(Message.DOMA1007,
                             valueClass.getName(), value);
                 }
