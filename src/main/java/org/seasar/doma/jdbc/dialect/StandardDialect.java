@@ -479,6 +479,12 @@ public class StandardDialect implements Dialect {
         }
 
         @Override
+        public Void visitBigDecimalScalaWrapper(BigDecimalScalaWrapper wrapper, JdbcMappingFunction p, JdbcMappingHint q)
+                throws SQLException {
+            return p.apply(wrapper, JdbcTypes.BIG_DECIMAL_SCALA);
+        }
+
+        @Override
         public Void visitBigIntegerWrapper(BigIntegerWrapper wrapper,
                                            JdbcMappingFunction p, JdbcMappingHint q) throws SQLException {
             return p.apply(wrapper, JdbcTypes.BIG_INTEGER);
@@ -637,6 +643,12 @@ public class StandardDialect implements Dialect {
         public String visitBigDecimalWrapper(BigDecimalWrapper wrapper,
                                              SqlLogFormattingFunction p, Void q) {
             return p.apply(wrapper, JdbcTypes.BIG_DECIMAL);
+        }
+
+        @Override
+        public String visitBigDecimalScalaWrapper(BigDecimalScalaWrapper wrapper,
+                                                  SqlLogFormattingFunction p, Void q) {
+            return p.apply(wrapper, JdbcTypes.BIG_DECIMAL_SCALA);
         }
 
         @Override

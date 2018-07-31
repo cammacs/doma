@@ -15,60 +15,24 @@
  */
 package org.seasar.doma.internal.apt.cttype;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
-import static org.seasar.doma.internal.util.AssertionUtil.assertUnreachable;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Date;
-import java.sql.NClob;
-import java.sql.SQLXML;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import org.seasar.doma.internal.apt.util.ElementUtil;
+import org.seasar.doma.internal.apt.util.TypeMirrorUtil;
+import org.seasar.doma.wrapper.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.ArrayType;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.PrimitiveType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.*;
 import javax.lang.model.util.SimpleTypeVisitor8;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
-import org.seasar.doma.internal.apt.util.ElementUtil;
-import org.seasar.doma.internal.apt.util.TypeMirrorUtil;
-import org.seasar.doma.wrapper.ArrayWrapper;
-import org.seasar.doma.wrapper.BigDecimalWrapper;
-import org.seasar.doma.wrapper.BigIntegerWrapper;
-import org.seasar.doma.wrapper.BlobWrapper;
-import org.seasar.doma.wrapper.BooleanWrapper;
-import org.seasar.doma.wrapper.ByteWrapper;
-import org.seasar.doma.wrapper.BytesWrapper;
-import org.seasar.doma.wrapper.ClobWrapper;
-import org.seasar.doma.wrapper.DateWrapper;
-import org.seasar.doma.wrapper.DoubleWrapper;
-import org.seasar.doma.wrapper.EnumWrapper;
-import org.seasar.doma.wrapper.FloatWrapper;
-import org.seasar.doma.wrapper.IntegerWrapper;
-import org.seasar.doma.wrapper.LocalDateTimeWrapper;
-import org.seasar.doma.wrapper.LocalDateWrapper;
-import org.seasar.doma.wrapper.LocalTimeWrapper;
-import org.seasar.doma.wrapper.LongWrapper;
-import org.seasar.doma.wrapper.NClobWrapper;
-import org.seasar.doma.wrapper.ObjectWrapper;
-import org.seasar.doma.wrapper.SQLXMLWrapper;
-import org.seasar.doma.wrapper.ShortWrapper;
-import org.seasar.doma.wrapper.StringWrapper;
-import org.seasar.doma.wrapper.TimeWrapper;
-import org.seasar.doma.wrapper.TimestampWrapper;
-import org.seasar.doma.wrapper.UtilDateWrapper;
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
+import static org.seasar.doma.internal.util.AssertionUtil.assertUnreachable;
 
 public class WrapperCtType extends AbstractCtType {
 
@@ -169,6 +133,9 @@ public class WrapperCtType extends AbstractCtType {
             }
             if (TypeMirrorUtil.isAssignable(t, BigDecimal.class, env)) {
                 return BigDecimalWrapper.class;
+            }
+            if (TypeMirrorUtil.isAssignable(t, scala.math.BigDecimal.class, env)) {
+                return BigDecimalScalaWrapper.class;
             }
             if (TypeMirrorUtil.isAssignable(t, BigInteger.class, env)) {
                 return BigIntegerWrapper.class;

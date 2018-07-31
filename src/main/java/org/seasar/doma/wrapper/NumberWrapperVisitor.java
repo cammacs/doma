@@ -40,6 +40,13 @@ public interface NumberWrapperVisitor<R, P, Q, TH extends Throwable> extends
         return visitNumberWrapper(wrapper, p, q);
     }
 
+
+    default R visitBigDecimalScalaWrapper(BigDecimalScalaWrapper wrapper, P p, Q q)
+            throws TH {
+        return visitNumberWrapper(wrapper, p, q);
+    }
+
+
     default R visitByteWrapper(ByteWrapper wrapper, P p, Q q) throws TH {
         return visitNumberWrapper(wrapper, p, q);
     }

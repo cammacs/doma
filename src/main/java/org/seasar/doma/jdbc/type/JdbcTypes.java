@@ -27,6 +27,9 @@ public final class JdbcTypes {
 
     public static final BigDecimalType BIG_DECIMAL = new BigDecimalType();
 
+    public static final BigDecimalScalaType BIG_DECIMAL_SCALA = new BigDecimalScalaType();
+
+
     public static final BigIntegerType BIG_INTEGER = new BigIntegerType();
 
     public static final BlobType BLOB = new BlobType();

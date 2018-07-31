@@ -15,56 +15,25 @@
  */
 package org.seasar.doma.internal.jdbc.scalar;
 
-import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
-import static org.seasar.doma.internal.util.AssertionUtil.assertTrue;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Date;
-import java.sql.NClob;
-import java.sql.SQLXML;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.function.Supplier;
-
 import org.seasar.doma.Domain;
 import org.seasar.doma.internal.util.ClassUtil;
 import org.seasar.doma.jdbc.ClassHelper;
 import org.seasar.doma.jdbc.domain.DomainType;
 import org.seasar.doma.jdbc.domain.DomainTypeFactory;
 import org.seasar.doma.message.Message;
-import org.seasar.doma.wrapper.ArrayWrapper;
-import org.seasar.doma.wrapper.BigDecimalWrapper;
-import org.seasar.doma.wrapper.BigIntegerWrapper;
-import org.seasar.doma.wrapper.BlobWrapper;
-import org.seasar.doma.wrapper.BooleanWrapper;
-import org.seasar.doma.wrapper.ByteWrapper;
-import org.seasar.doma.wrapper.BytesWrapper;
-import org.seasar.doma.wrapper.ClobWrapper;
-import org.seasar.doma.wrapper.DateWrapper;
-import org.seasar.doma.wrapper.DoubleWrapper;
-import org.seasar.doma.wrapper.EnumWrapper;
-import org.seasar.doma.wrapper.FloatWrapper;
-import org.seasar.doma.wrapper.IntegerWrapper;
-import org.seasar.doma.wrapper.LocalDateTimeWrapper;
-import org.seasar.doma.wrapper.LocalDateWrapper;
-import org.seasar.doma.wrapper.LocalTimeWrapper;
-import org.seasar.doma.wrapper.LongWrapper;
-import org.seasar.doma.wrapper.NClobWrapper;
-import org.seasar.doma.wrapper.ObjectWrapper;
-import org.seasar.doma.wrapper.SQLXMLWrapper;
-import org.seasar.doma.wrapper.ShortWrapper;
-import org.seasar.doma.wrapper.StringWrapper;
-import org.seasar.doma.wrapper.TimeWrapper;
-import org.seasar.doma.wrapper.TimestampWrapper;
-import org.seasar.doma.wrapper.UtilDateWrapper;
+import org.seasar.doma.wrapper.*;
 import org.seasar.doma.wrapper.Wrapper;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.function.Supplier;
+
+import static org.seasar.doma.internal.util.AssertionUtil.assertNotNull;
+import static org.seasar.doma.internal.util.AssertionUtil.assertTrue;
 
 /**
  * 値を適切な {@link Scalar} でラップするクラスです。
@@ -133,6 +102,11 @@ public final class Scalars {
         if (valueClass == BigDecimal.class) {
             Supplier<Wrapper<BigDecimal>> supplier = () -> new BigDecimalWrapper(
                     (BigDecimal) value);
+            return createBasicScalarSupplier(supplier, optional, primitive);
+        }
+        if (valueClass == scala.math.BigDecimal.class) {
+            Supplier<Wrapper<scala.math.BigDecimal>> supplier = () -> new BigDecimalScalaWrapper(
+                    (scala.math.BigDecimal) value);
             return createBasicScalarSupplier(supplier, optional, primitive);
         }
         if (valueClass == java.util.Date.class) {

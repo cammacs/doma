@@ -40,6 +40,11 @@ public interface WrapperVisitor<R, P, Q, TH extends Throwable> {
         return null;
     }
 
+    default R visitBigDecimalScalaWrapper(BigDecimalScalaWrapper wrapper, P p, Q q)
+            throws TH {
+        return null;
+    }
+
     default R visitBigIntegerWrapper(BigIntegerWrapper wrapper, P p, Q q)
             throws TH {
         return null;

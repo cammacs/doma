@@ -68,6 +68,7 @@ repositories {
 }
 
 dependencies {
+    compile 'org.scala-lang:scala-library:2.11.5'
     testCompile 'junit:junit:3.8.2'
 }
 
