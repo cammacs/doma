@@ -18,7 +18,11 @@ package org.seasar.doma.jdbc.type;
 
 import scala.math.BigDecimal;
 
-import java.sql.*;
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
 
 /**
  * {@link BigDecimal} 用の {@link JdbcType} の実装です。
@@ -34,7 +38,11 @@ public class BigDecimalScalaType extends AbstractJdbcType<BigDecimal> {
     @Override
     protected BigDecimal doGetValue(ResultSet resultSet, int index)
             throws SQLException {
-        return new BigDecimal(resultSet.getBigDecimal(index));
+        java.math.BigDecimal b = resultSet.getBigDecimal(index);
+        if (b == null) {
+            return null;
+        }
+        return new BigDecimal(b);
     }
 
     @Override
@@ -46,7 +54,11 @@ public class BigDecimalScalaType extends AbstractJdbcType<BigDecimal> {
     @Override
     protected BigDecimal doGetValue(CallableStatement callableStatement,
                                     int index) throws SQLException {
-        return new BigDecimal(callableStatement.getBigDecimal(index));
+        java.math.BigDecimal b = callableStatement.getBigDecimal(index);
+        if (b == null) {
+            return null;
+        }
+        return new BigDecimal(b);
     }
 
     @Override
